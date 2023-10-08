@@ -64,11 +64,11 @@ public:
   void write_cas_sync(RdmaOpRegion &write_ror, RdmaOpRegion &cas_ror,
                       uint64_t equal, uint64_t val, CoroContext *ctx = nullptr);
 
-  void write_cas_mask(RdmaOpRegion &write_ror, RdmaOpRegion &cas_ror,
-                      uint64_t equal, uint64_t val, uint64_t mask, bool signal = true,
-                      CoroContext *ctx = nullptr);
-  void write_cas_mask_sync(RdmaOpRegion &write_ror, RdmaOpRegion &cas_ror,
-                           uint64_t equal, uint64_t val, uint64_t mask, CoroContext *ctx = nullptr);
+  // void write_cas_mask(RdmaOpRegion &write_ror, RdmaOpRegion &cas_ror,
+  //                     uint64_t equal, uint64_t val, uint64_t mask, bool signal = true,
+  //                     CoroContext *ctx = nullptr);
+  // void write_cas_mask_sync(RdmaOpRegion &write_ror, RdmaOpRegion &cas_ror,
+  //                          uint64_t equal, uint64_t val, uint64_t mask, CoroContext *ctx = nullptr);
 
   void cas(GlobalAddress gaddr, uint64_t equal, uint64_t val,
            uint64_t *rdma_buffer, bool signal = true,
@@ -91,25 +91,32 @@ public:
   bool cas_write_sync(RdmaOpRegion &cas_ror, RdmaOpRegion &write_ror,
                       uint64_t equal, uint64_t val, CoroContext *ctx = nullptr);
 
-  void two_cas_mask(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, uint64_t mask_1,
-                    RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2, uint64_t mask_2,
-                    bool signal = true, CoroContext *ctx = nullptr);
-  std::pair<bool, bool> two_cas_mask_sync(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, uint64_t mask_1,
-                                          RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2, uint64_t mask_2,
-                                          CoroContext *ctx = nullptr);
+  void two_cas(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1,
+               RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2,
+               bool signal = true, CoroContext *ctx = nullptr);
+  std::pair<bool, bool> two_cas_sync(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, 
+                                     RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2,
+                                     CoroContext *ctx = nullptr);
 
-  void cas_mask(GlobalAddress gaddr, uint64_t equal, uint64_t val,
-                uint64_t *rdma_buffer, uint64_t mask = ~(0ull),
-                bool signal = true, CoroContext *ctx = nullptr);
-  bool cas_mask_sync(GlobalAddress gaddr, uint64_t equal, uint64_t val,
-                     uint64_t *rdma_buffer, uint64_t mask = ~(0ull), CoroContext *ctx = nullptr);
+  // void two_cas_mask(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, uint64_t mask_1,
+  //                   RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2, uint64_t mask_2,
+  //                   bool signal = true, CoroContext *ctx = nullptr);
+  // std::pair<bool, bool> two_cas_mask_sync(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, uint64_t mask_1,
+  //                                         RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2, uint64_t mask_2,
+  //                                         CoroContext *ctx = nullptr);
 
-  void faa_boundary(GlobalAddress gaddr, uint64_t add_val,
-                    uint64_t *rdma_buffer, uint64_t mask = 63,
-                    bool signal = true, CoroContext *ctx = nullptr);
-  void faa_boundary_sync(GlobalAddress gaddr, uint64_t add_val,
-                         uint64_t *rdma_buffer, uint64_t mask = 63,
-                         CoroContext *ctx = nullptr);
+  // void cas_mask(GlobalAddress gaddr, uint64_t equal, uint64_t val,
+  //               uint64_t *rdma_buffer, uint64_t mask = ~(0ull),
+  //               bool signal = true, CoroContext *ctx = nullptr);
+  // bool cas_mask_sync(GlobalAddress gaddr, uint64_t equal, uint64_t val,
+  //                    uint64_t *rdma_buffer, uint64_t mask = ~(0ull), CoroContext *ctx = nullptr);
+
+  // void faa_boundary(GlobalAddress gaddr, uint64_t add_val,
+  //                   uint64_t *rdma_buffer, uint64_t mask = 63,
+  //                   bool signal = true, CoroContext *ctx = nullptr);
+  // void faa_boundary_sync(GlobalAddress gaddr, uint64_t add_val,
+  //                        uint64_t *rdma_buffer, uint64_t mask = 63,
+  //                        CoroContext *ctx = nullptr);
 
   // for on-chip device memory
   void read_dm(char *buffer, GlobalAddress gaddr, size_t size,
@@ -128,18 +135,18 @@ public:
   bool cas_dm_sync(GlobalAddress gaddr, uint64_t equal, uint64_t val,
                    uint64_t *rdma_buffer, CoroContext *ctx = nullptr);
 
-  void cas_dm_mask(GlobalAddress gaddr, uint64_t equal, uint64_t val,
-                   uint64_t *rdma_buffer, uint64_t mask = ~(0ull),
-                   bool signal = true, CoroContext *ctx = nullptr);
-  bool cas_dm_mask_sync(GlobalAddress gaddr, uint64_t equal, uint64_t val,
-                        uint64_t *rdma_buffer, uint64_t mask = ~(0ull), CoroContext *ctx = nullptr);
+  // void cas_dm_mask(GlobalAddress gaddr, uint64_t equal, uint64_t val,
+  //                  uint64_t *rdma_buffer, uint64_t mask = ~(0ull),
+  //                  bool signal = true, CoroContext *ctx = nullptr);
+  // bool cas_dm_mask_sync(GlobalAddress gaddr, uint64_t equal, uint64_t val,
+  //                       uint64_t *rdma_buffer, uint64_t mask = ~(0ull), CoroContext *ctx = nullptr);
 
-  void faa_dm_boundary(GlobalAddress gaddr, uint64_t add_val,
-                       uint64_t *rdma_buffer, uint64_t mask = 63,
-                       bool signal = true, CoroContext *ctx = nullptr);
-  void faa_dm_boundary_sync(GlobalAddress gaddr, uint64_t add_val,
-                            uint64_t *rdma_buffer, uint64_t mask = 63,
-                            CoroContext *ctx = nullptr);
+  // void faa_dm_boundary(GlobalAddress gaddr, uint64_t add_val,
+  //                      uint64_t *rdma_buffer, uint64_t mask = 63,
+  //                      bool signal = true, CoroContext *ctx = nullptr);
+  // void faa_dm_boundary_sync(GlobalAddress gaddr, uint64_t add_val,
+  //                           uint64_t *rdma_buffer, uint64_t mask = 63,
+  //                           CoroContext *ctx = nullptr);
 
   uint64_t poll_rdma_cq(int count = 1);
   bool poll_rdma_cq_once(uint64_t &wr_id);

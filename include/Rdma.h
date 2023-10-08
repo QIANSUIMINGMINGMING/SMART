@@ -81,8 +81,8 @@ bool createQueuePair(ibv_qp **qp, ibv_qp_type mode, ibv_cq *send_cq,
                      ibv_cq *recv_cq, RdmaContext *context,
                      uint32_t qpsMaxDepth = kQPMaxDepth, uint32_t maxInlineData = kInlineDataMax);
 
-bool createDCTarget(ibv_exp_dct **dct, ibv_cq *cq, RdmaContext *context,
-                    uint32_t qpsMaxDepth = kQPMaxDepth, uint32_t maxInlineData = kInlineDataMax);
+// bool createDCTarget(ibv_exp_dct **dct, ibv_cq *cq, RdmaContext *context,
+//                     uint32_t qpsMaxDepth = kQPMaxDepth, uint32_t maxInlineData = kInlineDataMax);
 void fillAhAttr(ibv_ah_attr *attr, uint32_t remoteLid, uint8_t *remoteGid,
                 RdmaContext *context);
 
@@ -119,19 +119,19 @@ bool rdmaWrite(ibv_qp *qp, uint64_t source, uint64_t dest, uint64_t size,
 
 bool rdmaFetchAndAdd(ibv_qp *qp, uint64_t source, uint64_t dest, uint64_t add,
                      uint32_t lkey, uint32_t remoteRKey);
-bool rdmaFetchAndAddBoundary(ibv_qp *qp, uint64_t source, uint64_t dest,
-                         uint64_t add, uint32_t lkey, uint32_t remoteRKey,
-                         uint64_t boundary = 63, bool singal = true,
-                         uint64_t wr_id = 0);
+// bool rdmaFetchAndAddBoundary(ibv_qp *qp, uint64_t source, uint64_t dest,
+//                          uint64_t add, uint32_t lkey, uint32_t remoteRKey,
+//                          uint64_t boundary = 63, bool singal = true,
+//                          uint64_t wr_id = 0);
 
 bool rdmaCompareAndSwap(ibv_qp *qp, uint64_t source, uint64_t dest,
                         uint64_t compare, uint64_t swap, uint32_t lkey,
                         uint32_t remoteRKey, bool signal = true,
                         uint64_t wrID = 0);
-bool rdmaCompareAndSwapMask(ibv_qp *qp, uint64_t source, uint64_t dest,
-                            uint64_t compare, uint64_t swap, uint32_t lkey,
-                            uint32_t remoteRKey, uint64_t mask = ~(0ull),
-                            bool signal = true, uint64_t wrID = 0);
+// bool rdmaCompareAndSwapMask(ibv_qp *qp, uint64_t source, uint64_t dest,
+//                             uint64_t compare, uint64_t swap, uint32_t lkey,
+//                             uint32_t remoteRKey, uint64_t mask = ~(0ull),
+//                             bool signal = true, uint64_t wrID = 0);
 
 //// Utility.cpp
 void rdmaQueryQueuePair(ibv_qp *qp);
@@ -158,10 +158,14 @@ bool rdmaWriteFaa(ibv_qp *qp, const RdmaOpRegion &write_ror,
 bool rdmaWriteCas(ibv_qp *qp, const RdmaOpRegion &write_ror,
                   const RdmaOpRegion &cas_ror, uint64_t compare, uint64_t swap,
                   bool isSignaled, uint64_t wrID = 0);
-bool rdmaWriteCasMask(ibv_qp *qp, const RdmaOpRegion &write_ror,
-                      const RdmaOpRegion &cas_ror, uint64_t compare, uint64_t swap, uint64_t mask,
-                      bool isSignaled, uint64_t wrID = 0);
-bool rdmaTwoCasMask(ibv_qp *qp, const RdmaOpRegion &cas_ror_1, uint64_t compare_1, uint64_t swap_1, uint64_t mask_1,
-                    const RdmaOpRegion &cas_ror_2, uint64_t compare_2, uint64_t swap_2, uint64_t mask_2,
-                    bool isSignaled, uint64_t wrID = 0);
+bool rdmaTwoCas(ibv_qp *qp, const RdmaOpRegion &cas_ror_1, uint64_t compare_1,
+                uint64_t swap_1, const RdmaOpRegion &cas_ror_2,
+                uint64_t compare_2, uint64_t swap_2, bool isSignaled,
+                uint64_t wrID = 0);
+// bool rdmaWriteCasMask(ibv_qp *qp, const RdmaOpRegion &write_ror,
+//                       const RdmaOpRegion &cas_ror, uint64_t compare, uint64_t swap, uint64_t mask,
+//                       bool isSignaled, uint64_t wrID = 0);
+// bool rdmaTwoCasMask(ibv_qp *qp, const RdmaOpRegion &cas_ror_1, uint64_t compare_1, uint64_t swap_1, uint64_t mask_1,
+//                     const RdmaOpRegion &cas_ror_2, uint64_t compare_2, uint64_t swap_2, uint64_t mask_2,
+//                     bool isSignaled, uint64_t wrID = 0);
 #endif
