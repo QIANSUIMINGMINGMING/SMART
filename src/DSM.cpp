@@ -547,7 +547,7 @@ void DSM::two_cas(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1,
 
 std::pair<bool, bool> DSM::two_cas_sync(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, 
                                         RdmaOpRegion &cas_ror_2, uint64_t equal_2, uint64_t val_2,
-                                        CoroContext *ctx = nullptr) {
+                                        CoroContext *ctx) {
   if (GlobalAddress{cas_ror_1.dest}.nodeID == GlobalAddress{cas_ror_2.dest}.nodeID) {
     two_cas(cas_ror_1, equal_1, val_1, cas_ror_2, equal_2, val_2, true, ctx);
 
@@ -567,6 +567,8 @@ std::pair<bool, bool> DSM::two_cas_sync(RdmaOpRegion &cas_ror_1, uint64_t equal_
       pollWithCQ(iCon->cq, 2, &wc);
     }
   }
+
+  return std::make_pair(equal_1 == *(uint64_t *)cas_ror_1.source, equal_2 == *(uint64_t *)cas_ror_2.source);
 }
 
 // void DSM::two_cas_mask(RdmaOpRegion &cas_ror_1, uint64_t equal_1, uint64_t val_1, uint64_t mask_1,
@@ -706,21 +708,21 @@ bool DSM::cas_sync(GlobalAddress gaddr, uint64_t equal, uint64_t val,
 //   }
 // }
 
-// void DSM::read_dm(char *buffer, GlobalAddress gaddr, size_t size, bool signal,
-//                   CoroContext *ctx) {
+void DSM::read_dm(char *buffer, GlobalAddress gaddr, size_t size, bool signal,
+                  CoroContext *ctx) {
 
-//   if (ctx == nullptr) {
-//     rdmaRead(iCon->data[0][gaddr.nodeID], (uint64_t)buffer,
-//              remoteInfo[gaddr.nodeID].lockBase + gaddr.offset, size,
-//              iCon->cacheLKey, remoteInfo[gaddr.nodeID].lockRKey[0], signal);
-//   } else {
-//     rdmaRead(iCon->data[0][gaddr.nodeID], (uint64_t)buffer,
-//              remoteInfo[gaddr.nodeID].lockBase + gaddr.offset, size,
-//              iCon->cacheLKey, remoteInfo[gaddr.nodeID].lockRKey[0], true,
-//              ctx->coro_id);
-//     (*ctx->yield)(*ctx->master);
-//   }
-// }
+  if (ctx == nullptr) {
+    rdmaRead(iCon->data[0][gaddr.nodeID], (uint64_t)buffer,
+             remoteInfo[gaddr.nodeID].lockBase + gaddr.offset, size,
+             iCon->cacheLKey, remoteInfo[gaddr.nodeID].lockRKey[0], signal);
+  } else {
+    rdmaRead(iCon->data[0][gaddr.nodeID], (uint64_t)buffer,
+             remoteInfo[gaddr.nodeID].lockBase + gaddr.offset, size,
+             iCon->cacheLKey, remoteInfo[gaddr.nodeID].lockRKey[0], true,
+             ctx->coro_id);
+    (*ctx->yield)(*ctx->master);
+  }
+}
 
 void DSM::read_dm_sync(char *buffer, GlobalAddress gaddr, size_t size,
                        CoroContext *ctx) {

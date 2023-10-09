@@ -96,8 +96,11 @@ private:
                      CoroContext *cxt, int coro_id);
   void search_entries(const Key &from, const Key &to, int target_depth, std::vector<ScanContext> &res,
                       CoroContext *cxt, int coro_id);
-  void cas_node_type(NodeType next_type, GlobalAddress p_ptr, InternalEntry p, Header hdr,
+  // void cas_node_type(NodeType next_type, GlobalAddress p_ptr, InternalEntry p, Header hdr,
+  //                    CoroContext *cxt, int coro_id);
+  void cas_node_type(NodeType next_type, GlobalAddress p_ptr, InternalEntry p, uint64_t node_type,
                      CoroContext *cxt, int coro_id);
+
   void range_query_on_page(InternalPage* page, bool from_cache, int depth,
                            GlobalAddress p_ptr, InternalEntry p,
                            const Key &from, const Key &to, State l_state, State r_state,

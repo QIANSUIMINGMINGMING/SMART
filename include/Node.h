@@ -44,13 +44,14 @@ public:
   uint8_t _padding[define::simulatedValLen];
   };
 
-  union {
-  struct {
-    uint8_t w_lock    : 1;
-    uint8_t r_padding : 7;
-  };
-  uint8_t lock_byte;
-  };
+  // union {
+  // struct {
+  //   uint8_t w_lock    : 1;
+  //   uint8_t r_padding : 7;
+  // };
+  // uint8_t lock_byte;
+  // };
+  uint64_t lock_byte;
 
 public:
   Leaf() {}
@@ -71,8 +72,8 @@ public:
     crc_processor.process_bytes((char *)&key, sizeof(Key) + sizeof(uint8_t) * define::simulatedValLen);
     checksum = crc_processor.checksum();
   }
-  void unlock() { w_lock = 0; };
-  void lock() { w_lock = 1; };
+  void unlock() { lock_byte = 0; };
+  void lock() { lock_byte = 1; };
 
   static uint8_t get_partial(const Key& key, int depth);
   static Key get_leftmost(const Key& key, int depth);
@@ -88,7 +89,7 @@ public:
 */
 #ifdef TREE_ENABLE_FINE_GRAIN_NODE
 #define MAX_NODE_TYPE_NUM 8
-enum NodeType : uint8_t {
+enum NodeType : uint64_t {
   NODE_DELETED,
   NODE_4,
   NODE_8,
@@ -100,7 +101,7 @@ enum NodeType : uint8_t {
 };
 #else
 #define MAX_NODE_TYPE_NUM 5
-enum NodeType : uint8_t {
+enum NodeType : uint64_t {
   NODE_DELETED,
   NODE_4,
   NODE_16,
@@ -153,22 +154,29 @@ public:
   union {
   struct {
     uint8_t depth;
-    uint8_t node_type   : define::nodeTypeNumBit;
-    uint8_t partial_len : 8 - define::nodeTypeNumBit;
+    // uint8_t node_type   : define::nodeTypeNumBit;
+    // uint8_t partial_len : 8 - define::nodeTypeNumBit;
+    uint8_t partial_len;
     uint8_t partial[define::hPartialLenMax];
   };
-
   uint64_t val;
   };
+  //remove node_type from header
 
 public:
-  Header() : depth(0), node_type(0), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
-  Header(int depth) : depth(depth), node_type(0), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
-  Header(NodeType node_type) : depth(0), node_type(node_type), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
-  Header(const Key &k, int partial_len, int depth, NodeType node_type) : depth(depth), node_type(node_type), partial_len(partial_len) {
+  Header() : depth(0), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
+  Header(int depth) : depth(depth), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
+  Header(const Key &k, int partial_len, int depth) : depth(depth), partial_len(partial_len) {
     assert((uint32_t)partial_len <= define::hPartialLenMax);
     for (int i = 0; i < partial_len; ++ i) partial[i] = get_partial(k, depth + i);
   }
+  // Header() : depth(0), node_type(0), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
+  // Header(int depth) : depth(depth), node_type(0), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
+  // Header(NodeType node_type) : depth(0), node_type(node_type), partial_len(0) { memset(partial, 0, sizeof(uint8_t) * define::hPartialLenMax); }
+  // Header(const Key &k, int partial_len, int depth, NodeType node_type) : depth(depth), node_type(node_type), partial_len(partial_len) {
+  //   assert((uint32_t)partial_len <= define::hPartialLenMax);
+  //   for (int i = 0; i < partial_len; ++ i) partial[i] = get_partial(k, depth + i);
+  // }
 
   operator uint64_t() { return val; }
 
@@ -187,15 +195,15 @@ public:
     return new_hdr;
   }
 
-  NodeType type() const {
-    return static_cast<NodeType>(node_type);
-  }
-  static const uint64_t node_type_mask = (((1UL << define::nodeTypeNumBit) - 1) << 8);
+  // NodeType type() const {
+  //   return static_cast<NodeType>(node_type);
+  // }
+  // static const uint64_t node_type_mask = (((1UL << define::nodeTypeNumBit) - 1) << 8);
 } __attribute__((packed));
 
 
-static_assert(sizeof(Header) == 8);
-static_assert(1UL << (8 - define::nodeTypeNumBit) >= define::hPartialLenMax);
+// static_assert(sizeof(Header) == 8);
+// static_assert(1UL << (8 - define::nodeTypeNumBit) >= define::hPartialLenMax);
 
 
 /*
@@ -267,19 +275,25 @@ public:
   GlobalAddress rev_ptr;
 
   Header hdr;
+  uint64_t node_type;
   InternalEntry records[256];
 
 public:
   InternalPage() { std::fill(records, records + 256, InternalEntry::Null()); }
-  InternalPage(const Key &k, int partial_len, int depth, NodeType node_type, const GlobalAddress& rev_ptr) : rev_ptr(rev_ptr), hdr(k, partial_len, depth, node_type) {
+  InternalPage(const Key &k, int partial_len, int depth, NodeType node_type, const GlobalAddress& rev_ptr) : rev_ptr(rev_ptr), hdr(k, partial_len, depth), node_type(static_cast<uint64_t>(node_type)) {
     std::fill(records, records + 256, InternalEntry::Null());
   }
-
-  bool is_valid(const GlobalAddress& p_ptr, int depth, bool from_cache) const { return hdr.type() != NODE_DELETED && hdr.depth <= depth && (!from_cache || p_ptr == rev_ptr); }
+  // InternalPage(const Key &k, int partial_len, int depth, NodeType node_type, const GlobalAddress& rev_ptr) : rev_ptr(rev_ptr), hdr(k, partial_len, depth, node_type) {
+  //   std::fill(records, records + 256, InternalEntry::Null());
+  // }
+  NodeType type() const {
+    return static_cast<NodeType>(node_type);
+  }
+  bool is_valid(const GlobalAddress& p_ptr, int depth, bool from_cache) const { return type() != NODE_DELETED && hdr.depth <= depth && (!from_cache || p_ptr == rev_ptr); }
 } __attribute__((packed));
 
 
-static_assert(sizeof(InternalPage) == 8 + 8 + 256 * 8);
+static_assert(sizeof(InternalPage) == 8 + 8 + 8 + 256 * 8);
 
 
 /*

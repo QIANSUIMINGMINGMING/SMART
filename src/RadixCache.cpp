@@ -84,7 +84,8 @@ next:
       // record
       node_queue->push(new_node);
       if (nested_node) node_queue->push(nested_node);
-      CacheMap::const_iterator tmp = (nested_node ? nested_node->records.find(byte_array.back()) : new_node->records.find(cur_partial));
+      // CacheMap::const_iterator tmp = (nested_node ? nested_node->records.find(byte_array.back()) : new_node->records.find(cur_partial));
+      CacheMap::iterator tmp = (nested_node ? nested_node->records.find(byte_array.back()) : new_node->records.find(cur_partial));
       eviction_list.push(std::make_pair(&(tmp->second.cache_entry), new_entry));
       return;
     }
@@ -122,7 +123,7 @@ next:
       if (ret_node == 0UL) {  // cas success
         // record
         node_queue->push(next_node);
-        CacheMap::const_iterator tmp = next_node->records.find(byte_array.back());
+        CacheMap::iterator tmp = next_node->records.find(byte_array.back());
         eviction_list.push(std::make_pair(&(tmp->second.cache_entry), new_entry));
         free_manager->consume_by_node(node);
         free_manager->consume_by_node(next_node);
@@ -196,7 +197,7 @@ next:
   auto& cache_map = node->records;
   auto partial = byte_array[idx];
 
-  CacheMap::const_iterator r_entry = cache_map.find(partial);
+  CacheMap::iterator r_entry = cache_map.find(partial);
   if (r_entry != cache_map.end()) {
     auto cache_entry = (CacheEntry *)r_entry->second.cache_entry;
     // ret.push(std::make_pair(std::make_pair(&(r_entry->second.cache_entry), cache_entry), idx + 1));
