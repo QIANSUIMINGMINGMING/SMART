@@ -280,7 +280,7 @@ next:
     index_cache->invalidate(entry_ptr_ptr, entry_ptr);
   }
   if (depth == hdr.depth) {
-    index_cache->add_to_cache(k, p_node, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header)));
+    index_cache->add_to_cache(k, p_node, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t)));
   }
 #else
   UNUSED(type_correct);
@@ -307,7 +307,8 @@ next:
       // udpate cas header. Optimization: no need to snyc; mask node_type
       auto header_buffer = (dsm->get_rbuf(coro_id)).get_header_buffer();
       auto new_hdr = Header::split_header(hdr, i);
-      dsm->cas_mask(GADD(p.addr(), sizeof(GlobalAddress)), (uint64_t)hdr, (uint64_t)new_hdr, header_buffer, ~Header::node_type_mask, false, cxt);
+      // dsm->cas_mask(GADD(p.addr(), sizeof(GlobalAddress)), (uint64_t)hdr, (uint64_t)new_hdr, header_buffer, ~Header::node_type_mask, false, cxt);
+      dsm->cas(GADD(p.addr(), sizeof(GlobalAddress)), (uint64_t)hdr, (uint64_t)new_hdr, header_buffer, false, cxt);
       goto insert_finish;
     }
   }
@@ -317,7 +318,7 @@ next:
   node_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header));
   if (!is_update) lock_node(node_ptr, cxt, coro_id);
 #else
-  node_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header));
+  node_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) );
 #endif
 
   // 3.3 try get the next internalEntry
@@ -326,7 +327,7 @@ next:
   for (int i = 0; i < max_num; ++ i) {
     auto old_e = p_node->records[i];
     if (old_e != InternalEntry::Null() && old_e.partial == get_partial(k, depth)) {
-      p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + i * sizeof(InternalEntry));
+      p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + i * sizeof(InternalEntry));
       p = old_e;
       from_cache = false;
       depth ++;
@@ -338,7 +339,7 @@ next:
   for (int i = 0; i < max_num; ++ i) {
     auto old_e = p_node->records[i];
     if (old_e == InternalEntry::Null()) {
-      auto e_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + i * sizeof(InternalEntry));
+      auto e_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + i * sizeof(InternalEntry));
       auto cas_buffer = (dsm->get_rbuf(coro_id)).get_cas_buffer();
       bool res = out_of_place_write_leaf(k, v, depth + 1, leaf_addr, get_partial(k, depth), e_ptr, old_e, node_ptr, cas_buffer, cxt, coro_id);
       // cas success, return
@@ -431,8 +432,9 @@ re_read:
 void Tree::in_place_update_leaf(const Key &k, Value &v, const GlobalAddress &leaf_addr, Leaf* leaf,
                                CoroContext *cxt, int coro_id) {
 #ifdef TREE_ENABLE_EMBEDDING_LOCK
-  static const uint64_t lock_cas_offset = ROUND_DOWN(STRUCT_OFFSET(Leaf, lock_byte), 3);
-  static const uint64_t lock_mask       = 1UL << ((STRUCT_OFFSET(Leaf, lock_byte) - lock_cas_offset) * 8);
+  // static const uint64_t lock_cas_offset = ROUND_DOWN(STRUCT_OFFSET(Leaf, lock_byte), 3);
+  // static const uint64_t lock_mask       = 1UL << ((STRUCT_OFFSET(Leaf, lock_byte) - lock_cas_offset) * 8);
+  static const uint64_t lock_cas_offset = STRUCT_OFFSET(Leaf, lock_byte);
 #endif
 
   auto cas_buffer = (dsm->get_rbuf(coro_id)).get_cas_buffer();
@@ -440,7 +442,8 @@ void Tree::in_place_update_leaf(const Key &k, Value &v, const GlobalAddress &lea
   // lock function
   auto acquire_lock = [=](const GlobalAddress &unique_leaf_addr) {
 #ifdef TREE_ENABLE_EMBEDDING_LOCK
-    return dsm->cas_mask_sync(GADD(unique_leaf_addr, lock_cas_offset), 0UL, ~0UL, cas_buffer, lock_mask, cxt);
+    // return dsm->cas_mask_sync(GADD(unique_leaf_addr, lock_cas_offset), 0UL, ~0UL, cas_buffer, lock_mask, cxt);
+    return dsm->cas_sync(GADD(unique_leaf_addr, lock_cas_offset), 0UL, 1UL, cas_buffer, cxt);
 #else
     GlobalAddress lock_addr;
     uint64_t mask;
@@ -452,7 +455,8 @@ void Tree::in_place_update_leaf(const Key &k, Value &v, const GlobalAddress &lea
   // unlock function
   auto unlock = [=](const GlobalAddress &unique_leaf_addr){
 #ifdef TREE_ENABLE_EMBEDDING_LOCK
-    dsm->cas_mask_sync(GADD(unique_leaf_addr, lock_cas_offset), ~0UL, 0UL, cas_buffer, lock_mask, cxt);
+    // dsm->cas_mask_sync(GADD(unique_leaf_addr, lock_cas_offset), ~0UL, 0UL, cas_buffer, lock_mask, cxt);
+    dsm->cas_sync(GADD(unique_leaf_addr, lock_cas_offset), 1UL, 0UL, cas_buffer, cxt);
 #else
     GlobalAddress lock_addr;
     uint64_t mask;
@@ -672,23 +676,35 @@ bool Tree::out_of_place_write_leaf(const Key &k, Value &v, int depth, GlobalAddr
 
 bool Tree::read_node(InternalEntry &p, bool& type_correct, char *node_buffer, const GlobalAddress& p_ptr, int depth, bool from_cache,
                      CoroContext *cxt, int coro_id) {
-  auto read_size = sizeof(GlobalAddress) + sizeof(Header) + node_type_to_num(p.type()) * sizeof(InternalEntry);
+  auto read_size = sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + node_type_to_num(p.type()) * sizeof(InternalEntry);
   dsm->read_sync(node_buffer, p.addr(), read_size, cxt);
   auto p_node = (InternalPage *)node_buffer;
   auto& hdr = p_node->hdr;
 
-  read_node_type[dsm->getMyThreadID()][hdr.type()] ++;
+  // read_node_type[dsm->getMyThreadID()][hdr.type()] ++;
+  NodeType p_node_type = p_node->type();
+  uint8_t p_node_type_num = (uint8_t)p_node->node_type;
+  read_node_type[dsm->getMyThreadID()][p_node_type] ++;
   try_read_node[dsm->getMyThreadID()] ++;
 
-  if (hdr.node_type != p.node_type) {
-    if (hdr.node_type > p.node_type) {  // need to read the rest part
+  if (p_node_type_num != p.node_type) {
+    if (p_node_type_num > p.node_type) {  // need to read the rest part
       read_node_repair[dsm->getMyThreadID()] ++;
-      auto remain_size = (node_type_to_num(hdr.type()) - node_type_to_num(p.type())) * sizeof(InternalEntry);
+      auto remain_size = (node_type_to_num(p_node_type) - node_type_to_num(p.type())) * sizeof(InternalEntry);
       dsm->read_sync(node_buffer + read_size, GADD(p.addr(), read_size), remain_size, cxt);
     }
-    p.node_type = hdr.node_type;
+    p.node_type = p_node_type_num;
     type_correct = false;
   }
+  // if (hdr.node_type != p.node_type) {
+  //   if (hdr.node_type > p.node_type) {  // need to read the rest part
+  //     read_node_repair[dsm->getMyThreadID()] ++;
+  //     auto remain_size = (node_type_to_num(hdr.type()) - node_type_to_num(p.type())) * sizeof(InternalEntry);
+  //     dsm->read_sync(node_buffer + read_size, GADD(p.addr(), read_size), remain_size, cxt);
+  //   }
+  //   p.node_type = hdr.node_type;
+  //   type_correct = false;
+  // }
   type_correct = true;
   // udpate reverse pointer if needed
   if (!from_cache && p_node->rev_ptr != p_ptr) {
@@ -712,7 +728,7 @@ bool Tree::out_of_place_write_node(const Key &k, Value &v, int depth, GlobalAddr
 
   // allocate & write new leaf
   auto leaf_buffer = (dsm->get_rbuf(coro_id)).get_leaf_buffer();
-  auto leaf_e_ptr = GADD(node_addrs[new_node_num - 1], sizeof(GlobalAddress) + sizeof(Header) + sizeof(InternalEntry) * 1);
+  auto leaf_e_ptr = GADD(node_addrs[new_node_num - 1], sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + sizeof(InternalEntry) * 1);
 #ifdef TREE_ENABLE_WRITE_COMBINING
   if (local_lock_table->get_combining_value(k, v)) leaf_unwrite = true;
 #endif
@@ -735,7 +751,7 @@ bool Tree::out_of_place_write_node(const Key &k, Value &v, int depth, GlobalAddr
     node_pages[i] = new (node_buffer) InternalPage(k, define::hPartialLenMax, depth, nodes_type, rev_ptr);
     node_pages[i]->records[0] = InternalEntry(get_partial(k, depth + define::hPartialLenMax),
                                               nodes_type, node_addrs[i + 1]);
-    rev_ptr = GADD(node_addrs[i], sizeof(GlobalAddress) + sizeof(Header));
+    rev_ptr = GADD(node_addrs[i], sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t));
     partial_len -= define::hPartialLenMax + 1;
     depth += define::hPartialLenMax + 1;
   }
@@ -787,14 +803,14 @@ bool Tree::out_of_place_write_node(const Key &k, Value &v, int depth, GlobalAddr
   // cas the updated rev_ptr inside old leaf / old node
   if (res) {
     auto cas_buffer = (dsm->get_rbuf(coro_id)).get_cas_buffer();
-    dsm->cas(old_e.addr(), e_ptr, GADD(node_addrs[new_node_num - 1], sizeof(GlobalAddress) + sizeof(Header)), cas_buffer, false, cxt);
+    dsm->cas(old_e.addr(), e_ptr, GADD(node_addrs[new_node_num - 1], sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t)), cas_buffer, false, cxt);
   }
 
 
 #ifdef TREE_ENABLE_CACHE
   if (res) {
     for (int i = 0; i < new_node_num; ++ i) {
-      index_cache->add_to_cache(k, node_pages[i], GADD(node_addrs[i], sizeof(GlobalAddress) + sizeof(Header)));
+      index_cache->add_to_cache(k, node_pages[i], GADD(node_addrs[i], sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t)));
     }
   }
 #endif
@@ -803,44 +819,44 @@ bool Tree::out_of_place_write_node(const Key &k, Value &v, int depth, GlobalAddr
   return res;
 }
 
-
-void Tree::cas_node_type(NodeType next_type, GlobalAddress p_ptr, InternalEntry p, Header hdr,
+void Tree::cas_node_type(NodeType next_type, GlobalAddress p_ptr, InternalEntry p, uint64_t node_type,
                          CoroContext *cxt, int coro_id) {
   auto node_addr = p.addr();
-  auto header_addr = GADD(node_addr, sizeof(GlobalAddress));
+  auto type_addr = GADD(node_addr, sizeof(GlobalAddress) + sizeof(Header));
   auto cas_buffer_1 = (dsm->get_rbuf(coro_id)).get_cas_buffer();
   auto cas_buffer_2 = (dsm->get_rbuf(coro_id)).get_cas_buffer();
   auto entry_buffer = (dsm->get_rbuf(coro_id)).get_entry_buffer();
   std::pair<bool, bool> res = std::make_pair(false, false);
 
   // batch cas old_entry & node header to change node type
-  auto remote_cas_both = [=, &p_ptr, &p, &hdr](){
+  auto remote_cas_both = [=, &p_ptr, &p, &node_type](){
     auto new_e = InternalEntry(next_type, p);
     RdmaOpRegion rs[2];
     rs[0].source     = (uint64_t)cas_buffer_1;
     rs[0].dest       = p_ptr;
     rs[0].is_on_chip = false;
     rs[1].source     = (uint64_t)cas_buffer_2;
-    rs[1].dest       = header_addr;
+    rs[1].dest       = type_addr;
     rs[1].is_on_chip = false;
-    return dsm->two_cas_mask_sync(rs[0], (uint64_t)p, (uint64_t)new_e, ~0UL,
-                                  rs[1], hdr, Header(next_type), Header::node_type_mask, cxt);
+    return dsm->two_cas_sync(rs[0], (uint64_t)p, (uint64_t)new_e,
+                               rs[1], node_type, static_cast<uint64_t>(next_type), cxt);
   };
 
-  // only cas old_entry
+    // only cas old_entry
   auto remote_cas_entry = [=, &p_ptr, &p](){
     auto new_e = InternalEntry(next_type, p);
     return dsm->cas_sync(p_ptr, (uint64_t)p, (uint64_t)new_e, cas_buffer_1, cxt);
   };
 
   // only cas node_header
-  auto remote_cas_header = [=, &hdr](){
-    return dsm->cas_mask_sync(header_addr, hdr, Header(next_type), cas_buffer_2, Header::node_type_mask, cxt);
+  auto remote_cas_header = [=, &node_type](){
+    return dsm->cas_sync(type_addr, node_type, Header(next_type), cas_buffer_2, cxt);
   };
 
   // read down to find target entry when split
   auto read_first_entry = [=, &p_ptr, &p](){
-    p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header));
+    //TODO: check all GADD
+    p_ptr = (p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t));
     dsm->read_sync((char *)entry_buffer, p_ptr, sizeof(InternalEntry), cxt);
     p = *(InternalEntry *)entry_buffer;
   };
@@ -864,14 +880,84 @@ re_switch:
     if (p.addr() != node_addr || p.type() >= next_type) res.first = true;  // no need to retry
   }
   if (!res.second) {
-    hdr = *(Header *)cas_buffer_2;
-    if (hdr.type() >= next_type) res.second = true;  // no need to retry
+    // hdr = *(Header *)cas_buffer_2;
+    node_type = *(uint64_t *)cas_buffer_2;
+    if (node_type >= next_type) res.second = true;  // no need to retry
+    // if (hdr.type() >= next_type) res.second = true;  // no need to retry
   }
   if (!res.first || !res.second) {
     retry_cnt[dsm->getMyThreadID()][SWITCH_RETRY] ++;
     goto re_switch;
-  }
+  } 
 }
+// void Tree::cas_node_type(NodeType next_type, GlobalAddress p_ptr, InternalEntry p, Header hdr,
+//                          CoroContext *cxt, int coro_id) {
+//   auto node_addr = p.addr();
+//   auto header_addr = GADD(node_addr, sizeof(GlobalAddress));
+//   auto cas_buffer_1 = (dsm->get_rbuf(coro_id)).get_cas_buffer();
+//   auto cas_buffer_2 = (dsm->get_rbuf(coro_id)).get_cas_buffer();
+//   auto entry_buffer = (dsm->get_rbuf(coro_id)).get_entry_buffer();
+//   std::pair<bool, bool> res = std::make_pair(false, false);
+
+//   // batch cas old_entry & node header to change node type
+//   auto remote_cas_both = [=, &p_ptr, &p, &hdr](){
+//     auto new_e = InternalEntry(next_type, p);
+//     RdmaOpRegion rs[2];
+//     rs[0].source     = (uint64_t)cas_buffer_1;
+//     rs[0].dest       = p_ptr;
+//     rs[0].is_on_chip = false;
+//     rs[1].source     = (uint64_t)cas_buffer_2;
+//     rs[1].dest       = header_addr;
+//     rs[1].is_on_chip = false;
+//     return dsm->two_cas_mask_sync(rs[0], (uint64_t)p, (uint64_t)new_e, ~0UL,
+//                                   rs[1], hdr, Header(next_type), Header::node_type_mask, cxt);
+//   };
+
+//   // only cas old_entry
+//   auto remote_cas_entry = [=, &p_ptr, &p](){
+//     auto new_e = InternalEntry(next_type, p);
+//     return dsm->cas_sync(p_ptr, (uint64_t)p, (uint64_t)new_e, cas_buffer_1, cxt);
+//   };
+
+//   // only cas node_header
+//   auto remote_cas_header = [=, &hdr](){
+//     return dsm->cas_mask_sync(header_addr, hdr, Header(next_type), cas_buffer_2, Header::node_type_mask, cxt);
+//   };
+
+//   // read down to find target entry when split
+//   auto read_first_entry = [=, &p_ptr, &p](){
+//     p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header));
+//     dsm->read_sync((char *)entry_buffer, p_ptr, sizeof(InternalEntry), cxt);
+//     p = *(InternalEntry *)entry_buffer;
+//   };
+
+// re_switch:
+//   auto old_res = res;
+//   if (!old_res.first && !old_res.second) {
+//     res = remote_cas_both();
+//   }
+//   else {
+//     if (!old_res.first)  res.first  = remote_cas_entry();
+//     if (!old_res.second) res.second = remote_cas_header();
+//   }
+//   if (!res.first) {
+//     p = *(InternalEntry *)cas_buffer_1;
+//     // handle the conflict when switch & split/delete happen at the same time
+//     while (p != InternalEntry::Null() && !p.is_leaf && p.addr() != node_addr) {
+//       read_first_entry();
+//       retry_cnt[dsm->getMyThreadID()][SWITCH_FIND_TARGET] ++;
+//     }
+//     if (p.addr() != node_addr || p.type() >= next_type) res.first = true;  // no need to retry
+//   }
+//   if (!res.second) {
+//     hdr = *(Header *)cas_buffer_2;
+//     if (hdr.type() >= next_type) res.second = true;  // no need to retry
+//   }
+//   if (!res.first || !res.second) {
+//     retry_cnt[dsm->getMyThreadID()][SWITCH_RETRY] ++;
+//     goto re_switch;
+//   }
+// }
 
 
 bool Tree::insert_behind(const Key &k, Value &v, int depth, GlobalAddress& leaf_addr, uint8_t partial_key, NodeType node_type,
@@ -1039,7 +1125,7 @@ next:
     index_cache->invalidate(entry_ptr_ptr, entry_ptr);
   }
   if (depth == hdr.depth) {
-    index_cache->add_to_cache(k, p_node, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header)));
+    index_cache->add_to_cache(k, p_node, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t)));
   }
 #else
   UNUSED(type_correct);
@@ -1059,7 +1145,7 @@ next:
   for (int i = 0; i < max_num; ++ i) {
     auto old_e = p_node->records[i];
     if (old_e != InternalEntry::Null() && old_e.partial == get_partial(k, hdr.depth + hdr.partial_len)) {
-      p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + i * sizeof(InternalEntry));
+      p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + i * sizeof(InternalEntry));
       p = old_e;
       from_cache = false;
       depth ++;
@@ -1189,7 +1275,7 @@ next:
   for (int i = 0; i < max_num; ++ i) {
     auto old_e = p_node->records[i];
     if (old_e != InternalEntry::Null() && old_e.partial == get_partial(from, hdr.depth + hdr.partial_len)) {
-      p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + i * sizeof(InternalEntry));
+      p_ptr = GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + i * sizeof(InternalEntry));
       p = old_e;
       from_cache = false;
       depth ++;
@@ -1348,7 +1434,7 @@ void Tree::range_query_on_page(InternalPage* page, bool from_cache, int depth,
   // assert(ei.depth + 1 == hdr.depth);  // only in condition of no concurrent insert
 #ifdef TREE_ENABLE_CACHE
   if (depth == hdr.depth - 1) {
-    index_cache->add_to_cache(from, page, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header)));
+    index_cache->add_to_cache(from, page, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t)));
   }
 #endif
 
@@ -1371,7 +1457,8 @@ void Tree::range_query_on_page(InternalPage* page, bool from_cache, int depth,
   // check partial & choose entry from records
   const uint8_t from_partial = get_partial(from, hdr.depth + hdr.partial_len);
   const uint8_t to_partial   = get_partial(to  , hdr.depth + hdr.partial_len);
-  int max_num = node_type_to_num(hdr.type());
+  // int max_num = node_type_to_num(hdr.type());
+  int max_num = node_type_to_num(page->type());
   for(int j = 0; j < max_num; ++ j) {
     const auto& e = page->records[j];
     if (e == InternalEntry::Null()) continue;
@@ -1401,7 +1488,7 @@ void Tree::range_query_on_page(InternalPage* page, bool from_cache, int depth,
         for (int i = 0; i < hdr.partial_len; ++ i) next_to   = remake_prefix(next_to  , hdr.depth + i, hdr.partial[i]);
         next_to   = remake_prefix(next_to  , hdr.depth + hdr.partial_len, e.partial);
       }
-      res.push_back(ScanContext(e, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + j * sizeof(InternalEntry)),
+      res.push_back(ScanContext(e, GADD(p.addr(), sizeof(GlobalAddress) + sizeof(Header) + sizeof(uint64_t) + j * sizeof(InternalEntry)),
                                 hdr.depth + hdr.partial_len, false, nullptr, nullptr, next_from, next_to, e_l_state, e_r_state));
     }
   }
