@@ -11,6 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++17")
 
 #Link Options
 set(LINKS_FLAGS "-lcityhash -lboost_system -lboost_coroutine -lpthread -libverbs -lmemcached -ltbb")
+find_package(TBB REQUIRED tbb tbbmalloc)
 
 #Env Options
 option (STATIC_MN_IP "Use static MNs according the IPs of the nodes" OFF)
@@ -129,10 +130,16 @@ file(GLOB_RECURSE COMMON_FILE ${COMMON_SRC}/*.cpp)
 add_library(SMART STATIC ${COMMON_FILE})
 link_libraries(SMART)
 
+target_link_libraries(SMART ${LINKS_FLAGS})
+
 #Test codes
 file(GLOB TEST_SRC ${PROJECT_SOURCE_DIR}/test/*.cpp)
 foreach (TEST ${TEST_SRC})
     get_filename_component(TEST_NAME ${TEST} NAME_WE)
     add_executable(${TEST_NAME} ${TEST})
-    target_link_libraries(${TEST_NAME} ${LINKS_FLAGS})
+    target_link_libraries(${TEST_NAME} 
+        PRIVATE TBB::tbb
+        PRIVATE TBB::tbbmalloc
+    )
 endforeach()
+
