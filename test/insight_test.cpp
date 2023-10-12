@@ -34,6 +34,7 @@ extern volatile bool need_stop;
 int kThreadCount;
 int kNodeCount;
 int kCoroCnt = 8;
+int x, y, p, q, k, z, t;
 
 TestMachine *machine;
 TestDSM *dsm;
@@ -96,7 +97,13 @@ void parse_args(int argc, char *argv[]) {
   kThreadCount = atoi(argv[2]);
   kCoroCnt = atoi(argv[3]);
 
+  x = atoi(argv[4]);
+  y = atoi(argv[5]);
+  p = atoi(argv[6]);
+  q = atoi(argv[7]);
+
   printf("kNodeCount %d, kThreadCount %d, kCoroCnt %d\n", kNodeCount, kThreadCount, kCoroCnt);
+  printf("x %d, y %d, p %d, q %d\n", x, y, p, q);
 }
 
 int main(int argc, char *argv[]) {
@@ -108,6 +115,10 @@ int main(int argc, char *argv[]) {
     config.threadNR = kThreadCount;
     dsm = TestDSM::getInstance(config);
     bindCore(kThreadCount);
+
+    dsm->registerThread();
+    machine = new TestMachine(dsm, x, y, p, q, 0, 0, 0);
+    dsm->barrier("init_finish");
 
     for (int i = 0; i < kThreadCount; i ++) {
         th[i] = std::thread(thread_run, i);
