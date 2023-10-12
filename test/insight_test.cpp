@@ -44,6 +44,7 @@ std::atomic<int64_t> warmup_cnt{0};
 std::atomic_bool ready{false};
 
 void work_func(TestMachine * machine , CoroContext *ctx, int coro_id, int op_rate = 50) {
+    tp[(int)machine->get_thread_id()][coro_id]++;
     std::random_device rd;     
     std::mt19937 rng(rd());    
     std::uniform_int_distribution<int> uni(0, 100);
@@ -52,10 +53,8 @@ void work_func(TestMachine * machine , CoroContext *ctx, int coro_id, int op_rat
 
     if (random_integer < op_rate) {
         machine->write(ctx, coro_id);
-        tp[(int)machine->get_thread_id()][coro_id]++;
     } else {
         machine->read(ctx, coro_id);
-        tp[(int)machine->get_thread_id()][coro_id]++;
     }
 }
 
