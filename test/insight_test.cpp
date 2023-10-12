@@ -55,8 +55,10 @@ void work_func(TestMachine * machine , CoroContext *ctx, int coro_id, int op_rat
 
     if (random_integer < op_rate) {
         machine->write(ctx, coro_id);
+        Debug::debugItem("write, thread %d, coro %d", dsm->getMyThreadID(), coro_id);
     } else {
         machine->read(ctx, coro_id);
+        Debug::debugItem("read, thread %d, coro %d", dsm->getMyThreadID(), coro_id);
     }
 }
 
