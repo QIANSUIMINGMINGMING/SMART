@@ -27,8 +27,8 @@ uint64_t try_read_leaf[MAX_APP_THREAD];
 uint64_t read_node_repair[MAX_APP_THREAD];
 uint64_t try_read_node[MAX_APP_THREAD];
 uint64_t read_node_type[MAX_APP_THREAD][MAX_NODE_TYPE_NUM];
-uint64_t latency[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
-volatile bool need_stop = false;
+uint64_t latency1[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
+volatile bool need_stop_1 = false;
 uint64_t retry_cnt[MAX_APP_THREAD][MAX_FLAG_NUM];
 
 thread_local CoroCall Tree::worker[MAX_CORO_NUM];
@@ -1519,7 +1519,7 @@ void Tree::coro_worker(CoroYield &yield, RequstGen *gen, WorkFunc work_func, int
   Timer coro_timer;
   auto thread_id = dsm->getMyThreadID();
 
-  while (!need_stop) {
+  while (!need_stop_1) {
     auto r = gen->next();
 
     coro_timer.begin();
@@ -1529,7 +1529,7 @@ void Tree::coro_worker(CoroYield &yield, RequstGen *gen, WorkFunc work_func, int
     if (us_10 >= LATENCY_WINDOWS) {
       us_10 = LATENCY_WINDOWS - 1;
     }
-    latency[thread_id][coro_id][us_10]++;
+    latency1[thread_id][coro_id][us_10]++;
   }
 }
 
@@ -1538,7 +1538,7 @@ void Tree::coro_master(CoroYield &yield, int coro_cnt) {
   for (int i = 0; i < coro_cnt; ++i) {
     yield(worker[i]);
   }
-  while (!need_stop) {
+  while (!need_stop_1) {
     uint64_t next_coro_id;
 
     if (dsm->poll_rdma_cq_once(next_coro_id)) {

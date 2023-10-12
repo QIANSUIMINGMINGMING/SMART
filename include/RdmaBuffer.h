@@ -4,6 +4,53 @@
 #include "Common.h"
 
 // abstract rdma registered buffer
+
+class TestBuffer {
+private:
+  static const int kCasBufferCnt = 256;
+  static const int kReadBufferCnt = 512;
+
+  char *buffer;
+
+  uint64_t *cas_buffer;
+  char *read_buffer;
+  char *zero_byte;
+
+  int cas_buffer_cur;
+  int read_buffer_cur;
+
+public:
+  TestBuffer(char *buffer) {
+    set_buffer(buffer);
+
+    cas_buffer_cur = 0;
+    read_buffer_cur = 0;
+  }
+
+  TestBuffer() = default;
+
+  void set_buffer(char *buffer) {
+    // printf("set buffer %p\n", buffer);
+    this->buffer = buffer;
+    cas_buffer = (uint64_t *)buffer;
+    read_buffer = (char *)((char *)cas_buffer + sizeof(uint64_t) * kCasBufferCnt);
+    zero_byte = (char *)((char *)read_buffer + define::allocationReadSize * kReadBufferCnt);
+    *zero_byte    = '\0';
+
+    assert(read_buffer - buffer < define::kPerCoroRdmaBuf);
+  }
+
+  uint64_t *get_cas_buffer() {
+    cas_buffer_cur = (cas_buffer_cur + 1) % kCasBufferCnt;
+    return cas_buffer + cas_buffer_cur;
+  }
+
+  char *get_read_buffer() {
+    read_buffer_cur = (read_buffer_cur + 1) % kReadBufferCnt;
+    return read_buffer + read_buffer_cur * define::allocationReadSize;
+  }
+};
+
 class RdmaBuffer {
 
 private:

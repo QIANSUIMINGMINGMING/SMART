@@ -19,8 +19,8 @@
 
 // Environment Config
 #define MAX_MACHINE 20
-#define MEMORY_NODE_NUM 2
-#define CPU_PHYSICAL_CORE_NUM 72  // [CONFIG]
+#define MEMORY_NODE_NUM 1
+#define CPU_PHYSICAL_CORE_NUM 96  // [CONFIG]
 #define MAX_CORO_NUM 8
 
 #define LATENCY_WINDOWS 100000
@@ -84,7 +84,7 @@ struct CoroContext {
 using CRCProcessor = boost::crc_optimal<64, 0x42F0E1EBA9EA3693, 0xffffffffffffffff, 0xffffffffffffffff, false, false>;
 
 namespace define {   // namespace define
-
+//TODO:adapt layout define
 constexpr uint64_t MB = 1024ull * 1024;
 constexpr uint64_t GB = 1024ull * MB;
 constexpr uint16_t kCacheLineSize = 64;
@@ -104,14 +104,14 @@ constexpr int kIndexCacheSize = 600;
 // KV
 constexpr uint32_t keyLen = 8;
 constexpr uint32_t simulatedValLen = 8;
-constexpr uint32_t allocAlignLeafSize = ROUND_UP(keyLen + simulatedValLen + 8 + 2, ALLOC_ALLIGN_BIT);
+constexpr uint32_t allocAlignLeafSize = ROUND_UP(keyLen + simulatedValLen + 8 + 1 + 8, ALLOC_ALLIGN_BIT); // lockbyte to 64bit
 
 // Tree
 constexpr uint64_t kRootPointerStoreOffest = kChunkSize / 2;
 static_assert(kRootPointerStoreOffest % sizeof(uint64_t) == 0);
 
 // Internal Node
-constexpr uint32_t allocationPageSize = 8 + 8 + 256 * 8;
+constexpr uint32_t allocationPageSize = 8 + 8 + 8 + 256 * 8; // add nodetype
 constexpr uint32_t allocAlignPageSize = ROUND_UP(allocationPageSize, ALLOC_ALLIGN_BIT);
 
 // Internal Entry
@@ -120,6 +120,9 @@ constexpr uint32_t nodeTypeNumBit  = 5;
 constexpr uint32_t mnIdBit         = 8;
 constexpr uint32_t offsetBit       = 48 - ALLOC_ALLIGN_BIT;
 constexpr uint32_t hPartialLenMax  = 6;
+
+// TestMachine
+constexpr uint32_t allocationReadSize = 64;
 
 // On-chip memory
 constexpr uint64_t kLockStartAddr = 0;

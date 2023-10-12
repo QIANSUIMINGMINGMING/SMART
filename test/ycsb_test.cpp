@@ -205,7 +205,8 @@ void thread_load(int id) {
 
 
 void thread_run(int id) {
-  bindCore(id * 2 + 1);  // bind to CPUs in NUMA that close to mlx5_2
+  // bindCore(id * 2 + 1);  // bind to CPUs in NUMA that close to mlx5_2
+  bindCore(id);
 
   dsm->registerThread();
   uint64_t my_id = kThreadCount * dsm->getMyNodeID() + id;
@@ -387,7 +388,7 @@ int main(int argc, char *argv[]) {
   config.machineNR = kNodeCount;
   config.threadNR = kThreadCount;
   dsm = DSM::getInstance(config);
-  bindCore(kThreadCount * 2 + 1);
+  bindCore(kThreadCount);
   if (rm_write_conflict) {
     dsm->loadKeySpace(ycsb_load_path, kIsStr);
   }
