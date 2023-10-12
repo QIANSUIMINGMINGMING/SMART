@@ -44,7 +44,10 @@ void TestMachine::coro_worker(CoroYield &yield, MWorkFunc work_func, int coro_id
   Timer coro_timer;
   auto thread_id = dsm->getMyThreadID();
 
+  Debug::debugItem("thread %d coro %d start", thread_id, coro_id);
+
   while (!need_stop) {
+    Debug::debugItem("thread %d coro %d start", thread_id, coro_id);
     coro_timer.begin();
     work_func(this, &ctx, coro_id, 50);
     tp[thread_id][coro_id] += 1;
@@ -65,6 +68,7 @@ void TestMachine::coro_master(CoroYield &yield, int coro_cnt) {
     uint64_t next_coro_id;
 
     if (dsm->poll_rdma_cq_once(next_coro_id)) {
+      Debug::debugItem("thread %d, next coro %d\n", dsm->getMyThreadID(),next_coro_id);
       yield(worker[next_coro_id]);
     }
     // uint64_t wr_ids[POLL_CQ_MAX_CNT_ONCE];

@@ -47,11 +47,7 @@ std::atomic<int64_t> warmup_cnt{0};
 std::atomic_bool ready{false};
 
 void work_func(TestMachine * machine , CoroContext *ctx, int coro_id, int op_rate = 50) {
-    std::random_device rd;     
-    std::mt19937 rng(rd());    
-    std::uniform_int_distribution<int> uni(0, 100);
-
-    int random_integer = uni(rng);
+    int random_integer = rand() % 100;
 
     if (random_integer < op_rate) {
         machine->write(ctx, coro_id);
