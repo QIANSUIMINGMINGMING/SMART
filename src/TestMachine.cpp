@@ -13,6 +13,7 @@
 #include <mutex>
 
 uint64_t latency[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
+uint64_t tp[MAX_APP_THREAD][MAX_CORO_NUM];
 
 thread_local CoroCall TestMachine::worker[MAX_CORO_NUM];
 thread_local CoroCall TestMachine::master;
@@ -46,6 +47,7 @@ void TestMachine::coro_worker(CoroYield &yield, MWorkFunc work_func, int coro_id
   while (!need_stop) {
     coro_timer.begin();
     work_func(this, &ctx, coro_id, 50);
+    tp[thread_id][coro_id] += 1;
     auto us_10 = coro_timer.end() / 100;
 
     if (us_10 >= LATENCY_WINDOWS) {

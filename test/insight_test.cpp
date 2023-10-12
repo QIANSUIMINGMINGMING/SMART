@@ -27,7 +27,10 @@
 #define TEST_EPOCH 10
 
 std::thread th[MAX_APP_THREAD];
-uint64_t tp[MAX_APP_THREAD][MAX_CORO_NUM];
+extern uint64_t tp[MAX_APP_THREAD][MAX_CORO_NUM];
+
+extern uint64_t latency[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
+uint64_t latency_th_all[LATENCY_WINDOWS];
 
 extern volatile bool need_stop;
 
@@ -44,7 +47,6 @@ std::atomic<int64_t> warmup_cnt{0};
 std::atomic_bool ready{false};
 
 void work_func(TestMachine * machine , CoroContext *ctx, int coro_id, int op_rate = 50) {
-    tp[(int)machine->get_thread_id()][coro_id]++;
     std::random_device rd;     
     std::mt19937 rng(rd());    
     std::uniform_int_distribution<int> uni(0, 100);
@@ -150,7 +152,7 @@ int main(int argc, char *argv[]) {
 
         uint64_t cap = all_tp - pre_tp;
         pre_tp = all_tp;
-
+        count++;
         double per_node_tp = cap * 1.0 / microseconds;
         uint64_t cluster_tp = dsm->sum((uint64_t)(per_node_tp * 1000));  // only node 0 return the sum
 

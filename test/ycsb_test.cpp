@@ -70,10 +70,10 @@ bool rm_write_conflict = false;
 
 
 std::thread th[MAX_APP_THREAD];
-uint64_t tp[MAX_APP_THREAD][MAX_CORO_NUM];
+uint64_t tp1[MAX_APP_THREAD][MAX_CORO_NUM];
 
 extern volatile bool need_stop;
-extern uint64_t latency[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
+extern uint64_t latency1[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
 uint64_t latency_th_all[LATENCY_WINDOWS];
 
 std::default_random_engine e;
@@ -115,7 +115,7 @@ public:
         extra_k += kThreadCount * kCoroCnt * dsm->getClusterSize();
       }
     }
-    tp[local_thread_id][coro_id]++;
+    tp1[local_thread_id][coro_id]++;
     req[cur].v = randval(e);  // make value different per-epoch
     return req[cur];
   }
@@ -321,7 +321,7 @@ void thread_run(int id) {
       if (us_10 >= LATENCY_WINDOWS) {
         us_10 = LATENCY_WINDOWS - 1;
       }
-      latency[thread_id][0][us_10]++;
+      latency1[thread_id][0][us_10]++;
     }
   }
   printf("thread %d exit.\n", id);
@@ -360,7 +360,7 @@ void save_latency(int epoch_id) {
     latency_th_all[i] = 0;
     for (int k = 0; k < MAX_APP_THREAD; ++k)
       for (int j = 0; j < MAX_CORO_NUM; ++j) {
-        latency_th_all[i] += latency[k][j][i];
+        latency_th_all[i] += latency1[k][j][i];
     }
   }
   // store in file
@@ -376,7 +376,7 @@ void save_latency(int epoch_id) {
     printf("Fail to write file!\n");
     assert(false);
   }
-  memset(latency, 0, sizeof(uint64_t) * MAX_APP_THREAD * MAX_CORO_NUM * LATENCY_WINDOWS);
+  memset(latency1, 0, sizeof(uint64_t) * MAX_APP_THREAD * MAX_CORO_NUM * LATENCY_WINDOWS);
 }
 
 int main(int argc, char *argv[]) {
@@ -417,7 +417,7 @@ int main(int argc, char *argv[]) {
     uint64_t all_tp = 0;
     for (int i = 0; i < MAX_APP_THREAD; ++i) {
       for (int j = 0; j < kCoroCnt; ++j)
-        all_tp += tp[i][j];
+        all_tp += tp1[i][j];
     }
     clock_gettime(CLOCK_REALTIME, &s);
 

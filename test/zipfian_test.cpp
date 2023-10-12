@@ -49,7 +49,7 @@ bool test_insert = false;
 #endif
 
 std::thread th[MAX_APP_THREAD];
-uint64_t tp[MAX_APP_THREAD][MAX_CORO_NUM];
+uint64_t tp2[MAX_APP_THREAD][MAX_CORO_NUM];
 
 extern volatile bool need_stop;
 extern uint64_t latency[MAX_APP_THREAD][MAX_CORO_NUM][LATENCY_WINDOWS];
@@ -110,7 +110,7 @@ public:
 #endif
     r.v = ++ val;
 
-    tp[id][coro_id]++;
+    tp2[id][coro_id]++;
     return r;
   }
 
@@ -299,7 +299,7 @@ int main(int argc, char *argv[]) {
     uint64_t all_tp = 0;
     for (int i = 0; i < MAX_APP_THREAD; ++i) {
       for (int j = 0; j < kCoroCnt; ++j)
-        all_tp += tp[i][j];
+        all_tp += tp2[i][j];
     }
     clock_gettime(CLOCK_REALTIME, &s);
 
